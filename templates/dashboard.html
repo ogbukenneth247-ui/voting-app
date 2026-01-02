@@ -1,0 +1,9 @@
+<a href="/register_voter" class="btn btn-primary mt-3">Register Voter</a>
+<a href="/vote" class="btn btn-success mt-3">Vote</a>
+<a href="/results" class="btn btn-warning mt-3">View Results</a>
+@app.route("/voter_dashboard")
+def voter_dashboard():
+    if "voter" not in session:
+        return redirect(url_for("voter_login"))
+    return render_template("voter_dashboard.html")
+
