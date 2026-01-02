@@ -1,9 +1,49 @@
-<a href="/register_voter" class="btn btn-primary mt-3">Register Voter</a>
-<a href="/vote" class="btn btn-success mt-3">Vote</a>
-<a href="/results" class="btn btn-warning mt-3">View Results</a>
-@app.route("/voter_dashboard")
-def voter_dashboard():
-    if "voter" not in session:
-        return redirect(url_for("voter_login"))
-    return render_template("voter_dashboard.html")
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
 
+<div class="navbar">
+    <h2>🗳️ E-Voting Admin</h2>
+    <a href="/register_voter">Register Voter</a>
+    <a href="/results">Results</a>
+    <a href="/logout" class="logout">Logout</a>
+</div>
+
+<div class="container">
+    <h1>Admin Dashboard</h1>
+
+    <div class="cards">
+        <div class="card">
+            <h3>Total Voters</h3>
+            <p>{{ total_voters }}</p>
+        </div>
+
+        <div class="card">
+            <h3>Total Votes</h3>
+            <p>{{ total_votes }}</p>
+        </div>
+    </div>
+
+    <h2>Election Results</h2>
+
+    <table>
+        <tr>
+            <th>Candidate</th>
+            <th>Votes</th>
+        </tr>
+        {% for candidate, count in results %}
+        <tr>
+            <td>{{ candidate }}</td>
+            <td>{{ count }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+</body>
+</html>
