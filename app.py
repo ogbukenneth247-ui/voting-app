@@ -5,27 +5,25 @@ import sqlite3
 import random
 import os
 
-# --------------------
+# ======================================================
 # APP CONFIG
-# --------------------
+# ======================================================
 app = Flask(__name__)
-
-# Secret key (Render will use env var, local uses fallback)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-# --------------------
+# ======================================================
 # ADMIN CREDENTIALS
-# --------------------
+# ======================================================
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD_HASH = generate_password_hash("admin123")
 
-# # --------------------
+# ======================================================
 # DATABASE
-# --------------------
+# ======================================================
 def get_db():
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
@@ -54,12 +52,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --------------------
+# ======================================================
 # AUTH HELPERS
-# --------------------
-def is_logged_in():
-    return "user" in session
-
+# ======================================================
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -68,43 +63,85 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --------------------
-# HOME
-# --------------------
+# ======================================================
+# PUBLIC HOME
+# ======================================================
 @app.route("/")
 def home():
     if "user" in session:
-        return render_template("dashboard.html")
+        return redirect(url_for("dashboard"))
     if "voter" in session:
         return redirect(url_for("voter_dashboard"))
-    return redirect(url_for("voter_login"))
+    return render_template("index.html")
 
-# --------------------
-# ADMIN LOGIN
-# --------------------
+# ======================================================
+# ADMIN AUTH
+# ======================================================
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    # ✅ ADMIN AUTO-REDIRECT
+    if "user" in session:
+        return redirect(url_for("dashboard"))
+
     if request.method == "POST":
         if (
             request.form["username"] == ADMIN_USERNAME
             and check_password_hash(ADMIN_PASSWORD_HASH, request.form["password"])
         ):
             session["user"] = ADMIN_USERNAME
-            return redirect(url_for("home"))
+            return redirect(url_for("dashboard"))
+
         return render_template("login.html", error="Invalid login")
 
     return render_template("login.html")
 
+
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for("home"))
 
-# --------------------
-# VOTER LOGIN
-# --------------------
+# ======================================================
+# ADMIN DASHBOARD
+# ======================================================
+@app.route("/dashboard")
+@admin_required
+def dashboard():
+    return render_template("dashboard.html")
+
+# ======================================================
+# REGISTER VOTER (ADMIN)
+# ======================================================
+@app.route("/register_voter", methods=["GET", "POST"])
+@admin_required
+def register_voter():
+    if request.method == "POST":
+        name = request.form["name"]
+        year = request.form["year"]
+        voter_id = "VOTE" + str(random.randint(1000, 9999))
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO voters (voter_id, name, year_of_birth) VALUES (?, ?, ?)",
+            (voter_id, name, year)
+        )
+        conn.commit()
+        conn.close()
+
+        return render_template("register_voter.html", success=voter_id)
+
+    return render_template("register_voter.html")
+
+# ======================================================
+# VOTER AUTH
+# ======================================================
 @app.route("/voter_login", methods=["GET", "POST"])
 def voter_login():
+    # ✅ VOTER AUTO-REDIRECT
+    if "voter" in session:
+        return redirect(url_for("voter_dashboard"))
+
     if request.method == "POST":
         voter_id = request.form["voter_id"]
 
@@ -122,14 +159,15 @@ def voter_login():
 
     return render_template("voter_login.html")
 
+
 @app.route("/voter_logout")
 def voter_logout():
     session.pop("voter", None)
-    return redirect(url_for("voter_login"))
+    return redirect(url_for("home"))
 
-# --------------------
+# ======================================================
 # VOTER DASHBOARD
-# --------------------
+# ======================================================
 @app.route("/voter_dashboard")
 def voter_dashboard():
     if "voter" not in session:
@@ -154,33 +192,9 @@ def voter_dashboard():
         voted=bool(voted)
     )
 
-# --------------------
-# REGISTER VOTER (ADMIN)
-# --------------------
-@app.route("/register_voter", methods=["GET", "POST"])
-@admin_required
-def register_voter():
-    if request.method == "POST":
-        name = request.form["name"]
-        year = request.form["year"]
-        voter_id = "VOTE" + str(random.randint(1000, 9999))
-
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO voters (voter_id, name, year_of_birth) VALUES (?, ?, ?)",
-            (voter_id, name, year)
-        )
-        conn.commit()
-        conn.close()
-
-        return render_template("register_voter.html", success=voter_id)
-
-    return render_template("register_voter.html")
-
-# --------------------
+# ======================================================
 # VOTING
-# --------------------
+# ======================================================
 @app.route("/vote", methods=["GET", "POST"])
 def vote():
     if "voter" not in session:
@@ -211,9 +225,9 @@ def vote():
     conn.close()
     return render_template("vote.html")
 
-# --------------------
+# ======================================================
 # RESULTS (ADMIN)
-# --------------------
+# ======================================================
 @app.route("/results")
 @admin_required
 def results():
@@ -221,7 +235,7 @@ def results():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT candidate, COUNT(*) as total
+        SELECT candidate, COUNT(*) AS total
         FROM votes
         GROUP BY candidate
     """)
@@ -230,10 +244,11 @@ def results():
 
     return render_template("results.html", results=results)
 
-# --------------------
-# RUN
-# --------------------
+# ======================================================
+# RUN APP
+# ======================================================
 if __name__ == "__main__":
+    init_db()
     app.run(host="0.0.0.0", port=10000)
 
 
